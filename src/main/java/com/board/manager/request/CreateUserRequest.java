@@ -1,4 +1,4 @@
-package com.board.manager.dto;
+package com.board.manager.request;
 
 import jakarta.validation.constraints.*;
 import lombok.Builder;

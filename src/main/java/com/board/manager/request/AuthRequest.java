@@ -1,4 +1,4 @@
-package com.board.manager.dto;
+package com.board.manager.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
