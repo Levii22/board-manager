@@ -1,17 +1,19 @@
 package com.board.manager.model;
 
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Data
 @Entity
 @Table(name = "tasks")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Task {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -38,9 +40,6 @@ public class Task {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_to")
     private User assignedTo;
-
-//    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-//    private Set<TaskHistory> history;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

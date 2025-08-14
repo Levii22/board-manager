@@ -1,9 +1,13 @@
 package com.board.manager.controller;
 
 import com.board.manager.dto.TaskDto;
-import com.board.manager.service.TaskService;
+import com.board.manager.request.CreateTaskRequest;
+import com.board.manager.request.CreateUserRequest;
+import com.board.manager.service.TaskServiceImpl;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,12 +18,12 @@ import java.util.UUID;
 @RequestMapping("/api/v1/board/{boardId}/task")
 public class TaskController {
 
-    private final TaskService taskService;
+    private final TaskServiceImpl taskService;
 
 
     @PostMapping
-    public ResponseEntity<TaskDto> createTask(@PathVariable Integer boardId, @RequestBody TaskDto taskDto) {
-        return ResponseEntity.ok(taskService.createTask(boardId, taskDto));
+    public ResponseEntity<TaskDto> createTask(@PathVariable Integer boardId, @Valid @RequestBody CreateTaskRequest request, Authentication authentication) {
+        return ResponseEntity.ok(taskService.createTask(boardId, request, authentication));
     }
 
     @GetMapping
