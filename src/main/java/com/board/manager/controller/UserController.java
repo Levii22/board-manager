@@ -1,27 +1,25 @@
 package com.board.manager.controller;
 
-import com.board.manager.dto.CreateUserRequest;
-import com.board.manager.service.UserService;
+import com.board.manager.request.CreateUserRequest;
+import com.board.manager.service.UserServiceImpl;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/user")
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/admin/user")
 class UserController {
 
-    public final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
+    public final UserServiceImpl userServiceImpl;
 
     @PostMapping("/")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequest request) {
         try {
-            userService.createUser(request.getUsername(), request.getPassword(), request.getEmail(), request.getRole());
+            userServiceImpl.createUser(request.getUsername(), request.getPassword(), request.getEmail(), request.getRole());
             return ResponseEntity.ok().body("User created successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -37,18 +35,18 @@ class UserController {
             @RequestParam(required = false) String newRole
     ) {
         try {
-            userService.updateUser(username, newPassword, newEmail, newRole);
+            userServiceImpl.updateUser(username, newPassword, newEmail, newRole);
             return ResponseEntity.ok().body("User updated successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    @DeleteMapping("/users/{username}")
+    @DeleteMapping("/{username}")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<?> deleteUser(@PathVariable String username) {
         try {
-            userService.deleteUser(username);
+            userServiceImpl.deleteUser(username);
             return ResponseEntity.ok().body("User deleted successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

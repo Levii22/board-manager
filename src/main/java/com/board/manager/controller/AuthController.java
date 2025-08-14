@@ -1,7 +1,7 @@
 package com.board.manager.controller;
 
-import com.board.manager.dto.LoginRequest;
-import com.board.manager.service.JwtService;
+import com.board.manager.request.LoginRequest;
+import com.board.manager.service.JwtServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -14,22 +14,21 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import com.board.manager.dto.AuthRequest;
-import com.board.manager.service.AuthService;
-import com.board.manager.model.User;
+import com.board.manager.request.AuthRequest;
+import com.board.manager.service.AuthServiceImpl;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final AuthService authService;
+    private final AuthServiceImpl authServiceImpl;
     private final AuthenticationManager authenticationManager;
-    private final JwtService jwtService;
+    private final JwtServiceImpl jwtServiceImpl;
 
-    public AuthController(AuthService authService, AuthenticationManager authenticationManager, JwtService jwtService) {
-        this.authService = authService;
+    public AuthController(AuthServiceImpl authServiceImpl, AuthenticationManager authenticationManager, JwtServiceImpl jwtServiceImpl) {
+        this.authServiceImpl = authServiceImpl;
         this.authenticationManager = authenticationManager;
-        this.jwtService = jwtService;
+        this.jwtServiceImpl = jwtServiceImpl;
     }
 
     @PostMapping("/login")
@@ -40,7 +39,7 @@ public class AuthController {
             );
             if (authentication.isAuthenticated()) {
                 UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-                return ResponseEntity.ok(jwtService.generateToken(userDetails));
+                return ResponseEntity.ok(jwtServiceImpl.generateToken(userDetails));
             } else {
                 throw new UsernameNotFoundException("Invalid user request!");
             }
@@ -52,7 +51,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody AuthRequest request) {
         try {
-            authService.registerUser(request.getUsername(), request.getPassword(), request.getEmail());
+            authServiceImpl.registerUser(request.getUsername(), request.getPassword(), request.getEmail());
             return ResponseEntity.ok().body("User registered successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
