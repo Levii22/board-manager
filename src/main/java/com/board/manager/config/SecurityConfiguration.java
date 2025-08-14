@@ -23,11 +23,10 @@ public class SecurityConfiguration {
     private final UserDetailsServiceImpl userDetailsService;
 
     public SecurityConfiguration(JwtAuthenticationFilter jwtAuthFilter,
-                          UserDetailsServiceImpl userDetailsService) {
+                                 UserDetailsServiceImpl userDetailsService) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
     }
-
 
     /*
      * Main security configuration
@@ -38,22 +37,21 @@ public class SecurityConfiguration {
         http
                 // Disable CSRF (not needed for stateless JWT)
                 .csrf(AbstractHttpConfigurer::disable)
-
+                .headers(AbstractHttpConfigurer::disable)
                 // Configure endpoint authorization
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
+                                "/h2-console/**",
                                 "/error"
                         ).permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated()
                 )
-
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -69,13 +67,12 @@ public class SecurityConfiguration {
     }
 
     /*
-     * Authentication provider configuration
-     * Links UserDetailsService and PasswordEncoder
+     * Authentication provider configuration (Updated for Spring Security 6+)
+     * Uses constructor injection instead of deprecated setters
      */
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(bCryptPasswordEncoder());
         return provider;
     }
