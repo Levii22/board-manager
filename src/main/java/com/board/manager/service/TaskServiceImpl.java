@@ -9,6 +9,7 @@ import com.board.manager.repository.BoardRepository;
 import com.board.manager.repository.TaskRepository;
 import com.board.manager.repository.UserRepository;
 import com.board.manager.request.CreateTaskRequest;
+import com.board.manager.service.notification.NotificationService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -33,8 +34,8 @@ public class TaskServiceImpl implements TaskService {
     private final BoardRepository boardRepository;
     private final CacheService cacheService;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    // In TaskServiceImpl
     @Override
     @Caching(evict = {
             @CacheEvict(value = "tasks", key = "'board:' + #boardId"),
@@ -53,6 +54,14 @@ public class TaskServiceImpl implements TaskService {
             task.setAssignedTo(user);
         }
         Task saved = taskRepository.save(task);
+
+        if (saved.getAssignedTo() != null) {
+            notificationService.sendTaskAssignmentNotification(
+                    saved.getAssignedTo().getId(),
+                    "You have been assigned a new task: " + saved.getTitle()
+            );
+        }
+
         log.debug("Created task {} for board {} and invalidated cache", saved.getId(), boardId);
         return taskMapper.toDto(saved);
     }
