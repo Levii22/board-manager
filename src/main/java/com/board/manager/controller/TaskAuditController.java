@@ -1,7 +1,7 @@
 package com.board.manager.controller;
 
-import com.board.manager.dto.TaskDto;
 import com.board.manager.service.TaskAuditService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.javers.core.diff.Change;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +15,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/admin/tasks/{taskId}/audit")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
+@SecurityRequirement(name = "bearerAuth")
 public class TaskAuditController {
 
     private final TaskAuditService taskAuditService;

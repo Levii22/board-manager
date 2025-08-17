@@ -2,8 +2,8 @@ package com.board.manager.controller;
 
 import com.board.manager.dto.TaskDto;
 import com.board.manager.request.CreateTaskRequest;
-import com.board.manager.request.CreateUserRequest;
 import com.board.manager.service.TaskServiceImpl;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +16,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/board/{boardId}/task")
+@SecurityRequirement(name = "bearerAuth")
 public class TaskController {
 
     private final TaskServiceImpl taskService;

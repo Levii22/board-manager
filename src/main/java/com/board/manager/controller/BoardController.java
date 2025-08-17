@@ -21,6 +21,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/board")
+@SecurityRequirement(name = "bearerAuth")
 public class BoardController {
 
     public final BoardServiceImpl boardServiceImpl;
@@ -47,7 +48,6 @@ public class BoardController {
 
     @PostMapping()
     @Operation(summary = "Create board", description = "Create a new board")
-    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<BoardDto> createBoard(@Valid @RequestBody CreateBoardRequest request, Authentication authentication) {
         User currentUser = getCurrentUser(authentication);
         try {
@@ -60,7 +60,6 @@ public class BoardController {
 
     @DeleteMapping("/{boardId}")
     @Operation(summary = "Delete board", description = "Delete a board by ID")
-    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<Void> deleteBoard(@PathVariable Integer boardId, Authentication authentication) {
         User currentUser = getCurrentUser(authentication);
 
