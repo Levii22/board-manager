@@ -45,6 +45,8 @@ public class SecurityConfiguration {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/h2-console/**",
+                                "/ws/**",
+                                "/websocket-demo.html",
                                 "/error"
                         ).permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMIN")

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Board Manager - Real-time Updates</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .update { padding: 8px; margin: 5px 0; border-left: 4px solid #007bff; background-color: #f8f9fa; }
+        .controls { margin: 20px 0; }
+        .auth-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        input, button { padding: 8px; margin: 5px; }
+        input[type="text"], input[type="password"] { width: 200px; }
+        #updates { max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; }
+        .task-created { border-left-color: #28a745; }
+        .task-updated { border-left-color: #ffc107; }
+        .task-deleted { border-left-color: #dc3545; }
+        .task-assigned { border-left-color: #17a2b8; }
+        .user-joined { border-left-color: #6f42c1; }
+        .user-left { border-left-color: #6c757d; }
+        .notification { border-left-color: #fd7e14; background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Board Manager - Real-time Updates Demo</h1>
+
+        <div class="auth-section">
+            <h3>Authentication</h3>
+            <div>
+                <input type="text" id="username" placeholder="Username" value="admin">
+                <input type="password" id="password" placeholder="Password" value="password">
+                <button onclick="login()">Login</button>
+                <button onclick="logout()">Logout</button>
+            </div>
+            <div id="authStatus">Not authenticated</div>
+        </div>
+
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <div class="controls">
+            <input type="number" id="boardId" placeholder="Board ID" value="1">
+            <button onclick="connectToBoard()">Connect to Board</button>
+            <button onclick="joinBoard()">Join Board</button>
+            <button onclick="leaveBoard()">Leave Board</button>
+            <button onclick="disconnect()">Disconnect</button>
+            <button onclick="clearUpdates()">Clear Updates</button>
+        </div>
+
+        <h3>Real-time Updates:</h3>
+        <div id="updates"></div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let currentBoardId = null;
+        let connected = false;
+        let jwtToken = null;
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    jwtToken = await response.text();
+                    document.getElementById('authStatus').textContent = `Authenticated as ${username}`;
+                    addUpdate('System', `Logged in as ${username}`, 'info');
+                } else {
+                    const error = await response.text();
+                    document.getElementById('authStatus').textContent = `Authentication failed: ${error}`;
+                    addUpdate('System', `Login failed: ${error}`, 'error');
+                }
+            } catch (error) {
+                document.getElementById('authStatus').textContent = `Login error: ${error.message}`;
+                addUpdate('System', `Login error: ${error.message}`, 'error');
+            }
+        }
+
+        function logout() {
+            jwtToken = null;
+            document.getElementById('authStatus').textContent = 'Not authenticated';
+            if (connected) {
+                disconnect();
+            }
+            addUpdate('System', 'Logged out', 'info');
+        }
+
+        function connectToBoard() {
+            if (!jwtToken) {
+                alert('Please login first');
+                return;
+            }
+
+            const boardId = document.getElementById('boardId').value;
+            if (!boardId) {
+                alert('Please enter a board ID');
+                return;
+            }
+
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+
+            // Add JWT token to connection headers
+            const headers = {
+                'Authorization': 'Bearer ' + jwtToken
+            };
+
+            stompClient.connect(headers, function (frame) {
+                connected = true;
+                currentBoardId = boardId;
+                updateStatus('Connected to WebSocket');
+
+                // Subscribe to board updates
+                stompClient.subscribe('/topic/board/' + boardId, function (message) {
+                    const update = JSON.parse(message.body);
+                    displayUpdate(update);
+                });
+
+                // Subscribe to personal error messages
+                stompClient.subscribe('/user/queue/errors', function (message) {
+                    displayError('ERROR: ' + message.body);
+                });
+
+                // Subscribe to personal confirmation messages
+                stompClient.subscribe('/user/queue/confirmations', function (message) {
+                    displayConfirmation('CONFIRMATION: ' + message.body);
+                });
+
+                // Subscribe to private notifications (user-specific)
+                stompClient.subscribe('/user/queue/notifications', function (message) {
+                    displayNotification(message.body);
+                });
+
+                addUpdate('System', 'Connected to board ' + boardId, 'info');
+            }, function (error) {
+                updateStatus('Connection failed: ' + error);
+                addUpdate('System', 'Connection failed: ' + error, 'error');
+                console.error('WebSocket connection error:', error);
+            });
+        }
+
+        function joinBoard() {
+            if (!connected || !currentBoardId) {
+                alert('Please connect to a board first');
+                return;
+            }
+
+            stompClient.send('/app/board/' + currentBoardId + '/join', {}, {});
+        }
+
+        function leaveBoard() {
+            if (!connected || !currentBoardId) {
+                alert('Please connect to a board first');
+                return;
+            }
+
+            stompClient.send('/app/board/' + currentBoardId + '/leave', {}, {});
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+                connected = false;
+                currentBoardId = null;
+                updateStatus('Disconnected');
+            }
+        }
+
+        function updateStatus(message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (connected ? 'connected' : 'disconnected');
+        }
+
+        function displayUpdate(update) {
+            const timestamp = new Date(update.timestamp).toLocaleTimeString();
+            let message = `[${timestamp}] ${update.type}: ${update.message}`;
+
+            if (update.taskData) {
+                message += ` (Task: ${update.taskData.title})`;
+            }
+
+            addUpdate(update.type, message, getUpdateTypeClass(update.type));
+        }
+
+        function displayNotification(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            addUpdate('NOTIFICATION', `[${timestamp}] Private: ${message}`, 'notification');
+        }
+
+        function displayError(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            addUpdate('ERROR', `[${timestamp}] ${message}`, 'error');
+        }
+
+        function displayConfirmation(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            addUpdate('CONFIRMATION', `[${timestamp}] ${message}`, 'info');
+        }
+
+        function addUpdate(type, message, cssClass = '') {
+            const updatesDiv = document.getElementById('updates');
+            const updateDiv = document.createElement('div');
+            updateDiv.className = 'update ' + cssClass;
+            updateDiv.textContent = message;
+            updatesDiv.appendChild(updateDiv);
+            updatesDiv.scrollTop = updatesDiv.scrollHeight;
+        }
+
+        function getUpdateTypeClass(type) {
+            switch (type) {
+                case 'TASK_CREATED': return 'task-created';
+                case 'TASK_UPDATED': return 'task-updated';
+                case 'TASK_DELETED': return 'task-deleted';
+                case 'TASK_ASSIGNED': return 'task-assigned';
+                case 'USER_JOINED': return 'user-joined';
+                case 'USER_LEFT': return 'user-left';
+                default: return '';
+            }
+        }
+
+        function clearUpdates() {
+            document.getElementById('updates').innerHTML = '';
+        }
+
+        // Auto-disconnect on page unload
+        window.addEventListener('beforeunload', function() {
+            if (connected) {
+                leaveBoard();
+                disconnect();
+            }
+        });
+    </script>
+</body>
+</html>
