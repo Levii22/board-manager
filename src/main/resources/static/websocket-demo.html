@@ -104,7 +104,7 @@
                 return;
             }
 
-            const boardId = document.getElementById('boardId').value;
+            let boardId = document.getElementById('boardId').value;
             if (!boardId) {
                 alert('Please enter a board ID');
                 return;
@@ -153,6 +153,7 @@
         }
 
         function joinBoard() {
+            currentBoardId = document.getElementById('boardId').value;
             if (!connected || !currentBoardId) {
                 alert('Please connect to a board first');
                 return;
@@ -162,6 +163,7 @@
         }
 
         function leaveBoard() {
+            currentBoardId = document.getElementById('boardId').value;
             if (!connected || !currentBoardId) {
                 alert('Please connect to a board first');
                 return;
