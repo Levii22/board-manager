@@ -34,4 +34,8 @@ public class Board {
     // tasks relation in Task model
     @OneToMany(mappedBy = "board", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Task> tasks = new ArrayList<>();
+
+    // Board members for sharing and access control
+    @OneToMany(mappedBy = "board", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<BoardMember> members = new ArrayList<>();
 }

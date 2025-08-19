@@ -3,8 +3,11 @@ package com.board.manager.service;
 import com.board.manager.dto.BoardDto;
 import com.board.manager.mapper.BoardMapper;
 import com.board.manager.model.Board;
+import com.board.manager.model.BoardMember;
 import com.board.manager.model.User;
 import com.board.manager.repository.BoardRepository;
+import com.board.manager.repository.BoardMemberRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -13,6 +16,8 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -23,6 +28,7 @@ import java.util.stream.Collectors;
 public class BoardServiceImpl implements BoardService {
 
     private final BoardRepository boardRepository;
+    private final BoardMemberRepository boardMemberRepository;
     private final BoardMapper boardMapper;
 
     @Caching(evict = {
@@ -34,6 +40,14 @@ public class BoardServiceImpl implements BoardService {
         board.setName(name.trim());
         board.setOwner(owner);
         Board savedBoard = boardRepository.save(board);
+
+        // Automatically add the owner as a board member with OWNER role
+        BoardMember ownerMembership = new BoardMember();
+        ownerMembership.setBoard(savedBoard);
+        ownerMembership.setUser(owner);
+        ownerMembership.setRole(BoardMember.BoardRole.OWNER);
+        boardMemberRepository.save(ownerMembership);
+
         log.debug("Created board with ID: {} and invalidated cache", savedBoard.getId());
         return boardMapper.toDto(savedBoard);
     }
@@ -43,12 +57,28 @@ public class BoardServiceImpl implements BoardService {
         log.debug("Checking access for user: {} to board: {}", user.getUsername(), boardId);
 
         if (user.getRole() == User.Role.ADMIN) {
+            log.debug("User {} has admin access to all boards", user.getUsername());
             return true;
         }
 
         return boardRepository.findById(boardId)
-                .map(board -> board.getOwner().getId().equals(user.getId()))
-                .orElse(false);
+                .map(board -> {
+                    // Check if user is the board owner (always has access)
+                    if (board.getOwner().getId().equals(user.getId())) {
+                        log.debug("User {} is the owner of board {}", user.getUsername(), boardId);
+                        return true;
+                    }
+
+                    // Check if user is a member of the board
+                    boolean isMember = boardMemberRepository.existsByBoardAndUser(board, user);
+                    log.debug("User {} membership status for board {}: {}",
+                             user.getUsername(), boardId, isMember);
+                    return isMember;
+                })
+                .orElseThrow(() -> {
+                    log.warn("Board {} not found when checking access for user {}", boardId, user.getUsername());
+                    return new EntityNotFoundException("Board not found");
+                });
     }
 
     @Transactional(readOnly = true)
@@ -61,8 +91,23 @@ public class BoardServiceImpl implements BoardService {
             // Admins can see all boards
             boards = boardRepository.findAll();
         } else {
-            // Members can only see their own boards
-            boards = boardRepository.findByOwner(user);
+            // Get boards where user is owner
+            List<Board> ownedBoards = boardRepository.findByOwner(user);
+
+            // Get boards where user is a member
+            List<BoardMember> memberships = boardMemberRepository.findByUser(user);
+            List<Board> memberBoards = memberships.stream()
+                    .map(BoardMember::getBoard)
+                    .toList();
+
+            // Combine and deduplicate
+            boards = new ArrayList<>(new HashSet<>(ownedBoards));
+
+            memberBoards.forEach(board -> {
+                if (!boards.contains(board)) {
+                    boards.add(board);
+                }
+            });
         }
         return boards.stream()
                 .map(boardMapper::toDto)
