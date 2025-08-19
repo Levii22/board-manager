@@ -1,8 +1,9 @@
 package com.board.manager.controller;
 
 import com.board.manager.request.LoginRequest;
-import com.board.manager.service.JwtServiceImpl;
+import com.board.manager.service.JwtService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -15,21 +16,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import com.board.manager.request.AuthRequest;
-import com.board.manager.service.AuthServiceImpl;
+import com.board.manager.service.AuthService;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final AuthServiceImpl authServiceImpl;
+    private final AuthService authService;
     private final AuthenticationManager authenticationManager;
-    private final JwtServiceImpl jwtServiceImpl;
-
-    public AuthController(AuthServiceImpl authServiceImpl, AuthenticationManager authenticationManager, JwtServiceImpl jwtServiceImpl) {
-        this.authServiceImpl = authServiceImpl;
-        this.authenticationManager = authenticationManager;
-        this.jwtServiceImpl = jwtServiceImpl;
-    }
+    private final JwtService jwtService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
@@ -39,7 +35,7 @@ public class AuthController {
             );
             if (authentication.isAuthenticated()) {
                 UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-                return ResponseEntity.ok(jwtServiceImpl.generateToken(userDetails));
+                return ResponseEntity.ok(jwtService.generateToken(userDetails));
             } else {
                 throw new UsernameNotFoundException("Invalid user request!");
             }
@@ -51,7 +47,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody AuthRequest request) {
         try {
-            authServiceImpl.registerUser(request.getUsername(), request.getPassword(), request.getEmail());
+            authService.registerUser(request.getUsername(), request.getPassword(), request.getEmail());
             return ResponseEntity.ok().body("User registered successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

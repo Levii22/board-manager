@@ -2,7 +2,6 @@ package com.board.manager.mapper;
 
 import com.board.manager.dto.TaskDto;
 import com.board.manager.model.Task;
-import com.board.manager.model.User;
 import com.board.manager.request.CreateTaskRequest;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
