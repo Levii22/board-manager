@@ -2,9 +2,12 @@ package com.board.manager.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import java.util.Objects;
 import java.util.Set;
@@ -16,36 +19,43 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WebSocketSessionService {
 
-    private final RedisTemplate<String, String> redisTemplate;
-
     private static final String SESSION_PREFIX = "ws:session:";
     private static final String BOARD_USERS_PREFIX = "ws:board:";
-    private static final String USER_BOARDS_PREFIX = "ws:user:boards:"; // Track boards per user
-    private static final int SESSION_TIMEOUT_HOURS = 24;
+    private static final String USER_BOARDS_PREFIX = "ws:user:boards:";
 
-    /**
-     * Register a WebSocket session
-     */
+    private final RedisTemplate<String, String> redisTemplate;
+
+    @Value("${websocket.session.timeout.hours:24}")
+    private int sessionTimeoutHours;
+
     public void registerSession(String sessionId, String username) {
+        Assert.hasText(sessionId, "Session ID must not be empty");
+        Assert.hasText(username, "Username must not be empty");
+
         try {
             String key = SESSION_PREFIX + sessionId;
-            redisTemplate.opsForValue().set(key, username, SESSION_TIMEOUT_HOURS, TimeUnit.HOURS);
-            log.debug("Registered WebSocket session {} for user {}", sessionId, username);
+            redisTemplate.opsForValue().set(key, username, sessionTimeoutHours, TimeUnit.HOURS);
+            if (log.isDebugEnabled()) {
+                log.debug("Registered WebSocket session {} for user {}", sessionId, username);
+            }
         } catch (Exception e) {
             log.error("Failed to register session {}: {}", sessionId, e.getMessage());
+            throw new RuntimeException("Failed to register session", e);
         }
     }
 
-    /**
-     * Unregister a WebSocket session - SIMPLIFIED VERSION
-     */
     public void unregisterSession(String sessionId) {
+        Assert.hasText(sessionId, "Session ID must not be empty");
+
         try {
             String sessionKey = SESSION_PREFIX + sessionId;
             redisTemplate.delete(sessionKey);
-            log.debug("Unregistered WebSocket session {}", sessionId);
+            if (log.isDebugEnabled()) {
+                log.debug("Unregistered WebSocket session {}", sessionId);
+            }
         } catch (Exception e) {
             log.error("Failed to unregister session {}: {}", sessionId, e.getMessage());
+            throw new RuntimeException("Failed to unregister session", e);
         }
     }
 
@@ -62,34 +72,35 @@ public class WebSocketSessionService {
         }
     }
 
-    /**
-     * Add user to a board's active users set
-     */
     public void addUserToBoard(Integer boardId, String username) {
+        Assert.notNull(boardId, "Board ID must not be null");
+        Assert.hasText(username, "Username must not be empty");
+
         try {
-            String boardKey = BOARD_USERS_PREFIX + boardId;
-            String userBoardsKey = USER_BOARDS_PREFIX + username;
-
-            SetOperations<String, String> setOps = redisTemplate.opsForSet();
-
-            // Add user to board
-            setOps.add(boardKey, username);
-            redisTemplate.expire(boardKey, SESSION_TIMEOUT_HOURS, TimeUnit.HOURS);
-
-            // Add board to user's boards
-            setOps.add(userBoardsKey, boardId.toString());
-            redisTemplate.expire(userBoardsKey, SESSION_TIMEOUT_HOURS, TimeUnit.HOURS);
-
-            log.debug("Added user {} to board {}", username, boardId);
+            redisTemplate.execute((RedisCallback<Object>) connection -> {
+                connection.multi();
+                String boardKey = BOARD_USERS_PREFIX + boardId;
+                String userBoardsKey = USER_BOARDS_PREFIX + username;
+                redisTemplate.opsForSet().add(boardKey, username);
+                redisTemplate.opsForSet().add(userBoardsKey, boardId.toString());
+                redisTemplate.expire(boardKey, sessionTimeoutHours, TimeUnit.HOURS);
+                redisTemplate.expire(userBoardsKey, sessionTimeoutHours, TimeUnit.HOURS);
+                connection.exec();
+                return null;
+            });
+            if (log.isDebugEnabled()) {
+                log.debug("Added user {} to board {}", username, boardId);
+            }
         } catch (Exception e) {
             log.error("Failed to add user {} to board {}: {}", username, boardId, e.getMessage());
+            throw new RuntimeException("Failed to add user to board", e);
         }
     }
 
-    /**
-     * Remove user from a board's active users set
-     */
     public void removeUserFromBoard(Integer boardId, String username) {
+        Assert.notNull(boardId, "Board ID must not be null");
+        Assert.hasText(username, "Username must not be empty");
+
         try {
             String boardKey = BOARD_USERS_PREFIX + boardId;
             String userBoardsKey = USER_BOARDS_PREFIX + username;
@@ -116,6 +127,7 @@ public class WebSocketSessionService {
             log.debug("Removed user {} from board {}", username, boardId);
         } catch (Exception e) {
             log.error("Failed to remove user {} from board {}: {}", username, boardId, e.getMessage());
+            throw new RuntimeException("Failed to remove user from board", e);
         }
     }
 
@@ -123,19 +135,22 @@ public class WebSocketSessionService {
      * Get all active users for a board
      */
     public Set<String> getBoardUsers(Integer boardId) {
+        Assert.notNull(boardId, "Board ID must not be null");
+
         try {
             String key = BOARD_USERS_PREFIX + boardId;
-            return redisTemplate.opsForSet().members(key);
+            Set<String> users = redisTemplate.opsForSet().members(key);
+            return users != null ? users : Set.of();
         } catch (Exception e) {
             log.error("Failed to get board users for {}: {}", boardId, e.getMessage());
             return Set.of();
         }
     }
 
-    /**
-     * Check if user is active on a board
-     */
     public boolean isUserActiveOnBoard(Integer boardId, String username) {
+        Assert.notNull(boardId, "Board ID must not be null");
+        Assert.hasText(username, "Username must not be empty");
+
         try {
             String key = BOARD_USERS_PREFIX + boardId;
             Boolean isMember = redisTemplate.opsForSet().isMember(key, username);
@@ -146,19 +161,17 @@ public class WebSocketSessionService {
         }
     }
 
-    /**
-     * Get all boards for a user
-     */
     public Set<Integer> getUserBoards(String username) {
+        Assert.hasText(username, "Username must not be empty");
+
         try {
             String key = USER_BOARDS_PREFIX + username;
             Set<String> boardStrings = redisTemplate.opsForSet().members(key);
-            if (boardStrings != null) {
-                return boardStrings.stream()
-                        .map(Integer::parseInt)
-                        .collect(Collectors.toSet());
-            }
-            return Set.of();
+            return boardStrings != null ?
+                    boardStrings.stream()
+                            .filter(Objects::nonNull)
+                            .map(Integer::parseInt)
+                            .collect(Collectors.toSet()) : Set.of();
         } catch (Exception e) {
             log.error("Failed to get user boards for {}: {}", username, e.getMessage());
             return Set.of();
