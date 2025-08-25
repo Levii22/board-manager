@@ -134,11 +134,6 @@
                     displayError('ERROR: ' + message.body);
                 });
 
-                // Subscribe to personal confirmation messages
-                stompClient.subscribe('/user/queue/confirmations', function (message) {
-                    displayConfirmation('CONFIRMATION: ' + message.body);
-                });
-
                 // Subscribe to private notifications (user-specific)
                 stompClient.subscribe('/user/queue/notifications', function (message) {
                     displayNotification(message.body);

@@ -212,7 +212,7 @@ public class WebSocketController {
      */
     private void sendConfirmationToUser(String username, String message) {
         try {
-            messagingTemplate.convertAndSendToUser(username, "/queue/confirmations", message);
+            messagingTemplate.convertAndSendToUser(username, "/queue/notifications", message);
             log.debug("Sent confirmation to user {}: {}", username, message);
         } catch (Exception e) {
             log.error("Failed to send confirmation to user {}: {}", username, e.getMessage());
